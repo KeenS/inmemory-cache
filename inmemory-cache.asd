@@ -19,7 +19,7 @@
   :depends-on (:babel)
   :components ((:module "src"
                 :components
-                ((:file "inmemory-cache")
+                ((:file "inmemory-cache" :depends-on ("message-pack"))
                  (:file "message-pack"))))
   :description ""
   :long-description
