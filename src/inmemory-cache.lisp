@@ -72,11 +72,16 @@
 (defun read-entry-unsafe (buffer search-key start)
   (let (len expire key value)
     (setf (values len start) (decode-from-buffer buffer start))
+    (when (= len 0)
+      ;; no entry
+      (return-from read-entry (values nil len)))
     (setf (values expire start) (decode-from-buffer buffer start))
     (when (< expire (get-universal-time))
+      ;; expired
       (return-from read-entry (values nil len)))
     (setf (values key start) (decode-from-buffer buffer start))
     (when (mismatch key search-key)
+      ;; hash was equal but key isn't equal
       (return-from read-entry (values nil len)))
     (setf value (decode-from-buffer buffer start)) 
     (values (make-cache-entry :key key :value value :expire expire)
