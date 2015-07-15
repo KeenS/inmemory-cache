@@ -4,7 +4,8 @@
   (:export
    :encode
    :encoding-size
-   :encode-to-buffer))
+   :encode-to-buffer
+   :decode-from-buffer))
 (in-package :inmemory-cache.messagepack)
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun mkstr (&rest args)
@@ -36,14 +37,17 @@
 (signed-unsigned-convertors 64)
 
 (defmacro store-big-endian (number buffer byte-count start)
-  (let ((g-number (gensym "number"))
-        (g-buffer (gensym "buffer"))
-        (g-start  (gensym "start")))
-    `(let ((,g-number ,number)
-           (,g-buffer ,buffer)
-           (,g-start ,start))
-       ,@(loop for i from (1- byte-count) downto 0
-              collect `(setf (aref ,g-buffer (+ ,i ,g-start)) (ldb (byte 8 ,(* 8 i)) ,g-number))))))
+  (let ((g-number     (gensym "number"))
+        (g-buffer     (gensym "buffer"))
+        (g-start      (gensym "start"))
+        (g-byte-count (gensym "byte-count")))
+    `(let* ((,g-number      ,number)
+            (,g-buffer      ,buffer)
+            (,g-byte-count  ,byte-count)
+            (,g-start       ,start))
+       ,@(loop
+            :for i :from 0 :below byte-count
+            :collect `(setf (aref ,g-buffer (- (+ ,g-byte-count ,g-start -1) ,i)) (ldb (byte 8 ,(* 8 i)) ,g-number))))))
 
 (defun encode (data)
   (let* ((size (encoding-size data))
@@ -59,7 +63,7 @@
     (null       (encoding-size-null        data))
     (boolean    (encoding-size-boolean     data))
     (string     (encoding-size-string      data))
-    ((array (unsigned-byte 8) (*)) (encodeing-size-octets data))
+    ((array (unsigned-byte 8) (*)) (encoding-size-octets data))
     (vector     (encoding-size-vector      data))
     (hash-table (encoding-size-hash-table  data))))
 
@@ -163,31 +167,33 @@
 
 
 #+sbcl (define-encoder float encode-float-to-buffer (data buffer start)
-         (cond ((equal (type-of data) 'single-float)
-                (setf (aref buffer start) #xca)
-                (incf start)
-                (store-big-endian (sb-kernel:single-float-bits data) buffer 4 start)
-                (+ 4 start))
-               ((equal (type-of data) 'double-float)
-                (setf (aref buffer start) #xcb)
-                (incf start)
-                (store-big-endian (sb-kernel:double-float-high-bits data) buffer 4 start)
-                (incf start 4)
-                (store-big-endian (sb-kernel:double-float-low-bits data) buffer 4 start)
-                (+ 4 start))))
+         (etypecase data
+           (single-float
+            (setf (aref buffer start) #xca)
+            (incf start)
+            (store-big-endian (sb-kernel:single-float-bits data) buffer 4 start)
+            (+ 4 start))
+           (double-float
+            (setf (aref buffer start) #xcb)
+            (incf start)
+            (store-big-endian (sb-kernel:double-float-high-bits data) buffer 4 start)
+            (incf start 4)
+            (store-big-endian (sb-kernel:double-float-low-bits data) buffer 4 start)
+            (+ 4 start))))
 
 #+ccl (define-encoder float encode-float-to-buffer (data buffer start)
-        (cond ((equal (type-of data) 'single-float)
-               (error "No cl-messagepack support for single precision floats in CCL."))
-              ((equal (type-of data) 'double-float)
-               (setf (aref buffer start )#xcb)
-               (incf start)
-               (multiple-value-bind (hi lo)
-                   (ccl::double-float-bits data)
-                 (store-big-endian hi buffer 4 start)
-                 (incf start 4)
-                 (store-big-endian lo buffer 4 start)
-                 (+ 4 start)))))
+        (etypecase
+            (single-float
+             (error "No cl-messagepack support for single precision floats in CCL."))
+          (double-float
+           (setf (aref buffer start )#xcb)
+           (incf start)
+           (multiple-value-bind (hi lo)
+               (ccl::double-float-bits data)
+             (store-big-endian hi buffer 4 start)
+             (incf start 4)
+             (store-big-endian lo buffer 4 start)
+             (+ 4 start)))))
 
 #-(or sbcl ccl)
 (define-encoder float encode-float-to-buffer (data buffer start)
@@ -209,7 +215,7 @@
   (declare (ignore data))
   1)
 
-(define-encoder boolean encoding-size-boolean (data buffer start)
+(define-encoder boolean encode-boolean-to-buffer (data buffer start)
   (declare (ignore data))
   (setf (aref buffer start) #xc3)
   (+ 1 start))
@@ -238,7 +244,8 @@
               (plusp typecode-8))
          (setf (aref buffer start) typecode-8)
          (incf start)
-         (store-big-endian len buffer 1 start))
+         (store-big-endian len buffer 1 start)
+         (+ 1 start))
         ((<= 0 len (1- (expt 2 16)))
          (setf (aref buffer start) typecode-16)
          (incf start)
@@ -305,17 +312,17 @@
      (progn
        (setf result (+ (ash result 8) (aref buffer start)))
        (incf start))
-     finally (return result)))
+     :finally (return result)))
 
 
-(defun decode-from-buffer (buffer start)
+(defun decode-from-buffer (buffer &optional (start 0))
   (let ((byte (aref buffer start)))
     (incf start)
     (cond 
       ((= 0 (ldb (byte 1 7) byte)) (values byte start))
-      ((= 8 (ldb (byte 4 4) byte)) (decode-map-from-buffer buffer (+ 1 start) (ldb (byte 4 0) byte)))
-      ((= 9 (ldb (byte 4 4) byte)) (decode-array-from-buffer buffer (+ 1 start) (ldb (byte 4 0) byte)))
-      ((= 5 (ldb (byte 3 5) byte)) (decode-string-from-buffer buffer (+ 1 start) (ldb (byte 5 0) byte)))
+      ((= 8 (ldb (byte 4 4) byte)) (decode-map-from-buffer buffer start (ldb (byte 4 0) byte)))
+      ((= 9 (ldb (byte 4 4) byte)) (decode-array-from-buffer buffer start (ldb (byte 4 0) byte)))
+      ((= 5 (ldb (byte 3 5) byte)) (decode-string-from-buffer buffer start (ldb (byte 5 0) byte)))
       ((= 7 (ldb (byte 3 5) byte)) (values (ub8->sb8 byte) start))
       (t (case byte
            ((#xc0) (values nil start))
@@ -372,7 +379,7 @@
 (defun decode-string-from-buffer (buffer start size)
   (values
    (babel:octets-to-string buffer :start start :end (+ start size))
-   size))
+   (+ size start)))
 
 (defun decode-array-from-buffer (buffer start size)
   (let ((array (make-array size)))
