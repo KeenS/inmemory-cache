@@ -15,7 +15,8 @@
                :prove)
   :components ((:module "t"
                 :components
-                ((:test-file "inmemory-cache"))))
+                ((:test-file "inmemory-cache")
+                 (:test-file "message-pack"))))
   :description "Test system for inmemory-cache"
 
   :defsystem-depends-on (:prove-asdf)

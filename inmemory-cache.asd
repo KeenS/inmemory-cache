@@ -19,7 +19,8 @@
   :depends-on (:babel)
   :components ((:module "src"
                 :components
-                ((:file "inmemory-cache"))))
+                ((:file "inmemory-cache")
+                 (:file "message-pack"))))
   :description ""
   :long-description
   #.(with-open-file (stream (merge-pathnames
