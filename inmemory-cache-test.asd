@@ -1,6 +1,6 @@
 #|
   This file is a part of inmemory-cache project.
-  Copyright (c) 2015 ?een
+  Copyright (c) 2015 κeen
 |#
 
 (in-package :cl-user)
@@ -9,7 +9,7 @@
 (in-package :inmemory-cache-test-asd)
 
 (defsystem inmemory-cache-test
-  :author "?een"
+  :author "κeen"
   :license "BSD"
   :depends-on (:inmemory-cache
                :prove)

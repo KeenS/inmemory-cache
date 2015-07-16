@@ -1,10 +1,10 @@
 #|
   This file is a part of inmemory-cache project.
-  Copyright (c) 2015 ?een
+  Copyright (c) 2015 κeen
 |#
 
 #|
-  Author: ?een
+  Author: κeen
 |#
 
 (in-package :cl-user)
@@ -14,7 +14,7 @@
 
 (defsystem inmemory-cache
   :version "0.1"
-  :author "?een"
+  :author "κeen"
   :license "BSD"
   :depends-on (:babel)
   :components ((:module "src"

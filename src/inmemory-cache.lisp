@@ -45,6 +45,7 @@
   (bucket (make-octets 0) :type octets)
   (hash-function #'cache-hash :type (function (octets) fixnum)))
 
+(declaim (ftype (function (integer) integer)))
 (defun normalize-to-entry-size (int)
   (* +entry-size+ (truncate (+ int +entry-size+ -1) +entry-size+)))
 

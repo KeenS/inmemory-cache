@@ -6,11 +6,11 @@
 
 ## Author
 
-* ?een
+* κeen
 
 ## Copyright
 
-Copyright (c) 2015 ?een
+Copyright (c) 2015 κeen
 
 ## License
 
