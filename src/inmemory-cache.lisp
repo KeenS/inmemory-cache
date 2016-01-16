@@ -12,10 +12,10 @@
    :+peta+
    :cache
    :make-cache
-   :cache-entry
-   :cache-entry-key
-   :cache-entry-value
-   :cache-entry-expire
+   ;; :cache-entry
+   ;; :cache-entry-key
+   ;; :cache-entry-value
+   ;; :cache-entry-expire
    :put-cache
    :get-cache))
 (in-package :inmemory-cache)
@@ -62,10 +62,10 @@
 (defun cache-bucket-size (cache)
   (length (cache-open-table cache)))
 
-(defstruct cache-entry
-  (key (make-octets 0) :type (octets))
-  (value (make-octets 0) :type (octets))
-  (expire 0 :type (unsigned-byte)))
+;; (defstruct cache-entry
+;;   (key (make-octets 0) :type (octets))
+;;   (value (make-octets 0) :type (octets))
+;;   (expire 0 :type (unsigned-byte)))
 
 @ftype (function (octets octets t integer integer) integer)
 (defun write-entry-unsafe (bucket key value expire start)
@@ -83,49 +83,36 @@
       (setf (aref open-table pos) 1)
       (write-entry-unsafe bucket key value expire (* pos +entry-size+)))))
 
-@ftype (function (octets octets integer) (or cache-entry null keyword))
+@ftype (function (octets octets integer) (values (or octets null) (or integer null)))
 (defun read-entry-unsafe (buffer search-key start)
   (let (expire key value)
+    ;; length is unused
     (setf (values length start) (decode-from-buffer buffer start))
 
     (setf (values expire start) (decode-from-buffer buffer start))
     (when (< expire (get-universal-time))
       ;; expired
-      (return-from read-entry-unsafe :expire))
+      (return-from read-entry-unsafe (values nil expire)))
 
     (setf (values key start) (decode-from-buffer buffer start))
     (when (mismatch key search-key)
       ;; hash was equal but key isn't equal
-      (return-from read-entry-unsafe nil))
+      (return-from read-entry-unsafe (values nil nil)))
 
     (setf value (decode-from-buffer buffer start))
-    (make-cache-entry :key key :value value :expire expire)))
+    (values value expire)))
 
-@ftype (function (cache octets) (or cache-entry null))
+@ftype (function (cache octets) (values (or octets null) (or integer null)))
 (defun get-cache (cache key)
   (with-slots (bucket hash-function open-table) cache
     (let* ((bucket-size (length open-table))
            (hash (funcall hash-function key))
            (pos  (rem hash bucket-size)))
       (if (zerop (aref open-table pos))
-          nil
-          (let ((res (read-entry-unsafe bucket key (* pos +entry-size+))))
-            (cond
-              ((eq :expire res) (setf (aref open-table pos) 0) nil)
-              (t res)))))))
+          (values nil nil)
+          (multiple-value-bind (value expire) (read-entry-unsafe bucket key (* pos +entry-size+))
+            (when (and expire (null value))
+              (setf (aref open-table pos) 0)
+              (setf expire nil))
+            (values value expire))))))
 
-#+ (or)
-(let ((cache (make-cache 1024))
-      (a (coerce #1A(97) '(octets)))
-      (b (coerce #1A(98) '(octets))))
-  (put-cache cache a b (+ (get-universal-time) (* 60 60)))
-  (get-cache cache a)
-  cache)
-
-#+ (or)
-(let ((cache (make-cache 1024))
-      (a (coerce #1A(97) '(octets)))
-      (b (coerce #1A(98) '(octets))))
-  (put-cache cache a b (- (get-universal-time) (* 60 60)))
-  (get-cache cache a)
-  cache)
