@@ -12,10 +12,6 @@
    :+peta+
    :cache
    :make-cache
-   ;; :cache-entry
-   ;; :cache-entry-key
-   ;; :cache-entry-value
-   ;; :cache-entry-expire
    :put-cache
    :get-cache))
 (in-package :inmemory-cache)
@@ -61,11 +57,6 @@
 @ftype (function (cache) integer)
 (defun cache-bucket-size (cache)
   (length (cache-open-table cache)))
-
-;; (defstruct cache-entry
-;;   (key (make-octets 0) :type (octets))
-;;   (value (make-octets 0) :type (octets))
-;;   (expire 0 :type (unsigned-byte)))
 
 @ftype (function (octets octets t integer integer) integer)
 (defun write-entry-unsafe (bucket key value expire start)
@@ -115,4 +106,3 @@
               (setf (aref open-table pos) 0)
               (setf expire nil))
             (values value expire))))))
-
