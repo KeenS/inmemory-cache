@@ -16,7 +16,8 @@
   :version "0.1"
   :author "κeen"
   :license "BSD"
-  :depends-on (:babel)
+  :depends-on (:babel
+               :cl-annot)
   :components ((:module "src"
                 :components
                 ((:file "inmemory-cache" :depends-on ("message-pack"))
