@@ -2,6 +2,7 @@
 (defpackage inmemory-cache-test
   (:use :cl
         :prove
+        :inmemory-cache.util
         :inmemory-cache))
 (in-package :inmemory-cache-test)
 

@@ -1,12 +1,15 @@
 (in-package :cl-user)
 (defpackage :inmemory-cache.messagepack
-  (:use :cl)
+  (:use :cl :inmemory-cache.util)
   (:export
    :encode
    :encoding-size
    :encode-to-buffer
    :decode-from-buffer))
 (in-package :inmemory-cache.messagepack)
+(annot:enable-annot-syntax)
+
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun mkstr (&rest args)
     (format nil "~{~a~}" args))
@@ -67,6 +70,7 @@
     (vector     (encoding-size-vector      data))
     (hash-table (encoding-size-hash-table  data))))
 
+@ftype (function (t octets integer) integer)
 (defun encode-to-buffer (data buffer start)
   (etypecase data
     (integer    (encode-integer-to-buffer     data buffer start))

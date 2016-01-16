@@ -24,6 +24,7 @@
 (defpackage inmemory-cache.messagepack-test
   (:use :cl
         :prove
+        :inmemory-cache.util
         :inmemory-cache.messagepack))
 (in-package inmemory-cache.messagepack-test)
 

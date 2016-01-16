@@ -1,6 +1,6 @@
 (in-package :cl-user)
 (defpackage :inmemory-cache
-  (:use :cl)
+  (:use :cl :inmemory-cache.util)
   (:import-from :inmemory-cache.messagepack
                 :encode-to-buffer
                 :encoding-size
@@ -21,28 +21,11 @@
 (in-package :inmemory-cache)
 (annot:enable-annot-syntax)
 
-(annot:defannotation ftype* (typespec name)
-    (:alias inline :inline t)
-  "Shorthand for (DECLARE (INLINE ...))."
-  (let ((symbol (annot.util:definition-form-symbol name))
-        (type (annot.util:definition-form-type name)))
-    (if (and symbol
-             (member type
-                     '(defun defmethod)))
-        `(progn
-           (declaim (ftype ,typespec ,symbol))
-           ,name)
-        `(declare (ftype ,typespec ,name)))))
-
-(defconstant +entry-size+ 128)
+(defconstant +entry-size+ 1024)
 (defconstant +kilo+ 1024)
 (defconstant +mega+ (* 1024 +kilo+))
 (defconstant +giga+ (* 1024 +mega+))
 (defconstant +peta+ (* 1024 +giga+))
-
-
-(deftype octets (&optional (size '*))
-  `(array (unsigned-byte 8) (,size)))
 
 @ftype (function (integer) (octets))
 (defun make-octets (size)
@@ -70,8 +53,13 @@
 
 @ftype (function (integer) cache)
 (defun make-cache (size)
-  (let ((size (normalize-to-entry-size size)))
-    (%make-cache (make-octets size) (make-bit-vector size))))
+  (let* ((length (normalize-to-entry-size size))
+         (size   (/ length +entry-size+)))
+    (%make-cache (make-octets length) (make-bit-vector size))))
+
+@ftype (function (cache) integer)
+(defun cache-bucket-size (cache)
+  (length (cache-open-table cache)))
 
 (defstruct cache-entry
   (key (make-octets 0) :type (octets))
@@ -87,10 +75,12 @@
 
 @ftype (function (cache octets t integer) integer)
 (defun put-cache (cache key value expire)
-  (with-slots (bucket hash-function) cache
-    (let* ((bucketlen (length bucket))
-           (hash (funcall hash-function key)))
-      (write-entry-unsafe bucket key value expire (rem (normalize-to-entry-size hash) bucketlen)))))
+  (with-slots (bucket hash-function open-table) cache
+    (let* ((bucket-size (length open-table))
+           (hash (funcall hash-function key))
+           (pos  (rem hash bucket-size)))
+      (setf (aref open-table pos) 1)
+      (write-entry-unsafe bucket key value expire (* pos +entry-size+)))))
 
 @ftype (function (octets octets integer) (or cache-entry null))
 (defun read-entry-unsafe (buffer search-key start)
@@ -103,18 +93,21 @@
     (when (mismatch key search-key)
       ;; hash was equal but key isn't equal
       (return-from read-entry-unsafe nil))
-    (setf value (decode-from-buffer buffer start)) 
+    (setf value (decode-from-buffer buffer start))
     (make-cache-entry :key key :value value :expire expire)))
 
-@ftype (function (cache octets) cache-entry)
+@ftype (function (cache octets) (or cache-entry null))
 (defun get-cache (cache key)
-  (with-slots (bucket hash-function) cache
-    (let* ((bucketlen (length bucket))
-           (hash (funcall hash-function key)))
-      (read-entry-unsafe bucket key (rem (normalize-to-entry-size hash) bucketlen)))))
+  (with-slots (bucket hash-function open-table) cache
+    (let* ((bucket-size (length open-table))
+           (hash (funcall hash-function key))
+           (pos  (rem hash bucket-size)))
+      (if (= 1 (aref open-table pos))
+          (read-entry-unsafe bucket key (* pos +entry-size+))
+          nil))))
 
 #+ (or)
-(let ((cache (make-cache 1024)) 
+(let ((cache (make-cache 1024))
       (a (coerce #1A(97) '(octets)))
       (b (coerce #1A(98) '(octets))))
   (put-cache cache a b (+ (get-universal-time) (* 60 60)))
@@ -122,7 +115,7 @@
   cache)
 
 #+ (or)
-(let ((cache (make-cache 1024)) 
+(let ((cache (make-cache 1024))
       (a (coerce #1A(97) '(octets)))
       (b (coerce #1A(98) '(octets))))
   (put-cache cache a b (- (get-universal-time) (* 60 60)))

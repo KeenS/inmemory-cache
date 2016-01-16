@@ -20,8 +20,9 @@
                :cl-annot)
   :components ((:module "src"
                 :components
-                ((:file "inmemory-cache" :depends-on ("message-pack"))
-                 (:file "message-pack"))))
+                ((:file "inmemory-cache" :depends-on ("util" "message-pack"))
+                 (:file "message-pack" :depends-on ("util"))
+                 (:file "util"))))
   :description ""
   :long-description
   #.(with-open-file (stream (merge-pathnames
