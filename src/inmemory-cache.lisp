@@ -35,6 +35,7 @@
 (defun make-bit-vector (size)
   (make-array size :element-type 'bit))
 
+;;; FIXME: use hash functions
 @ftype (function (octets) fixnum)
 (defun cache-hash (octets)
   (loop :for octet :across octets
@@ -82,19 +83,21 @@
       (setf (aref open-table pos) 1)
       (write-entry-unsafe bucket key value expire (* pos +entry-size+)))))
 
-@ftype (function (octets octets integer) (or cache-entry null))
+@ftype (function (octets octets integer) (or cache-entry null keyword))
 (defun read-entry-unsafe (buffer search-key start)
   (let (expire key value)
     (setf (values length start) (decode-from-buffer buffer start))
+
     (setf (values expire start) (decode-from-buffer buffer start))
     (when (< expire (get-universal-time))
       ;; expired
-      ;; TODO: set nonused flag
-      (return-from read-entry-unsafe nil))
+      (return-from read-entry-unsafe :expire))
+
     (setf (values key start) (decode-from-buffer buffer start))
     (when (mismatch key search-key)
       ;; hash was equal but key isn't equal
       (return-from read-entry-unsafe nil))
+
     (setf value (decode-from-buffer buffer start))
     (make-cache-entry :key key :value value :expire expire)))
 
@@ -106,7 +109,10 @@
            (pos  (rem hash bucket-size)))
       (if (zerop (aref open-table pos))
           nil
-          (read-entry-unsafe bucket key (* pos +entry-size+))))))
+          (let ((res (read-entry-unsafe bucket key (* pos +entry-size+))))
+            (cond
+              ((eq :expire res) (setf (aref open-table pos) 0) nil)
+              (t res)))))))
 
 #+ (or)
 (let ((cache (make-cache 1024))
