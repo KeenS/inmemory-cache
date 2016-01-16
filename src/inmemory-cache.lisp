@@ -85,9 +85,11 @@
 @ftype (function (octets octets integer) (or cache-entry null))
 (defun read-entry-unsafe (buffer search-key start)
   (let (expire key value)
+    (setf (values length start) (decode-from-buffer buffer start))
     (setf (values expire start) (decode-from-buffer buffer start))
     (when (< expire (get-universal-time))
       ;; expired
+      ;; TODO: set nonused flag
       (return-from read-entry-unsafe nil))
     (setf (values key start) (decode-from-buffer buffer start))
     (when (mismatch key search-key)
@@ -102,9 +104,9 @@
     (let* ((bucket-size (length open-table))
            (hash (funcall hash-function key))
            (pos  (rem hash bucket-size)))
-      (if (= 1 (aref open-table pos))
-          (read-entry-unsafe bucket key (* pos +entry-size+))
-          nil))))
+      (if (zerop (aref open-table pos))
+          nil
+          (read-entry-unsafe bucket key (* pos +entry-size+))))))
 
 #+ (or)
 (let ((cache (make-cache 1024))
